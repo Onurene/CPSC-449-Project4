@@ -1,5 +1,12 @@
-dynamodb_local_latest/
+#dynamodb_local_latest/
 dynamodb-local-metadata.json
+DynamoDBLocal_lib/
+DynamoDBLocal.jar
+LICENSE.txt
+README.txt
+shared-local-instance.db
+THIRD-PARTY-LICENSES.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
