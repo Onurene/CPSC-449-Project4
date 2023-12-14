@@ -4,6 +4,7 @@ import redis
 
 from fastapi import Depends, HTTPException, APIRouter, Header, status
 import boto3
+import pika
 
 from enrollment_service.database.schemas import Class, Subscription
 import datetime
@@ -17,6 +18,11 @@ database = "enrollment_service/database/database.db"
 dynamodb_client = boto3.client('dynamodb', endpoint_url='http://localhost:5500')
 table_name = 'TitanOnlineEnrollment'
 r = redis.Redis()
+# RabbitMQ connection
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+channel = connection.channel()
+channel.exchange_declare(exchange='enrollment_notifications', exchange_type='fanout')
+
 
 
 #=========================================notifications============================================
@@ -233,6 +239,7 @@ def drop_student_from_class(student_id: str, class_id: str):
             # first student on waitlist is automatically enrolled
             waitlist_data = r.lrange(f"waitlist:{class_id}", 0, 0)
             waitlist_data = [item.decode('utf-8')[2:] for item in waitlist_data]
+            first_student_id = waitlist_data[0]
             # Enroll student in class
             enrolled_class = qh.update_enrolled_class(dynamodb_client, waitlist_data[0], class_id)
             if not enrolled_class:
@@ -246,6 +253,9 @@ def drop_student_from_class(student_id: str, class_id: str):
             r.lrem(f"waitlist:{class_id}", 0, f"s#{waitlist_data[0]}")
             # Fetch the updated class data from the databas
             updated_class_data = qh.query_class(dynamodb_client, class_id)
+            message = f"Student {student_id} dropped from class {class_id} and first student on waitlist enrolled"
+            channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
+            print(f" [x] Sent {message}")
             return {"message": "Student dropped from class and first student on waitlist enrolled", "Class": updated_class_data["Detail"]}
     return {"message": "Student dropped from class"}
     
@@ -430,6 +440,9 @@ def instructor_drop_class(instructor_id: str, class_id: str, student_id: str):
             r.lrem(f"waitlist:{class_id}", 0, f"s#{waitlist_data[0]}")
             # Fetch the updated class data from the databas
             updated_class_data = qh.query_class(dynamodb_client, class_id)
+            message = f"Student {student_id} dropped from class {class_id} and first student on waitlist enrolled"
+            channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
+            print(f" [x] Sent {message}")
             return {"message": "Student dropped from class and first student on waitlist enrolled", "Class": updated_class_data["Detail"]}
     return {"message": "Student dropped from class"}
 
@@ -496,3 +509,8 @@ def freeze_automatic_enrollment(class_id: str):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to freeze enrollment")
     # return success message
     return {"message": "Enrollment frozen"}
+
+@router.on_event("shutdown")
+async def close_rabbitmq():
+    print("Closing rabbitmq connection")
+    connection.clsoe()
