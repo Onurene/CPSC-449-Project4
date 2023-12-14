@@ -41,6 +41,9 @@ def subscribe_new_class(subscription_data: Subscription):
     if webhook_url is None and email_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No webhook url or email id provided")
     subsciption_key = f'student{student_id}:sub{class_id}'
+    # Check if subscription already exists
+    if r.exists(subsciption_key):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subscription already exists")
     r.sadd(subsciption_key, str({"webhook_url": webhook_url}))
     r.sadd(subsciption_key, str({"email_id": email_id}))
     r.sadd(subsciption_key, str({"class_id": class_id}))
