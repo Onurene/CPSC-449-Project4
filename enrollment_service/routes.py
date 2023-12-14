@@ -4,7 +4,9 @@ import redis
 
 from fastapi import Depends, HTTPException, APIRouter, Header, status
 import boto3
+
 from enrollment_service.database.schemas import Class, Subscription
+import datetime
 
 router = APIRouter()
 dropped = []
@@ -237,7 +239,7 @@ def drop_student_from_class(student_id: str, class_id: str):
 
 # DONE: Get wait list position for a student in a class
 @router.get("/students/{student_id}/waitlist/{class_id}", tags=['Waitlist'], summary="Get waitlist position for a student in a class")
-def view_waiting_list(student_id: str, class_id: str):
+def view_waiting_list(student_id: str, class_id: str, if_modified_since: str = Header(None)):
     # check if student exists in the database
     student_data = qh.query_student(dynamodb_client, student_id)
     if not student_data:
@@ -252,13 +254,20 @@ def view_waiting_list(student_id: str, class_id: str):
     waitlist_data = r.lrange(waitlist_key, 0, -1)
     if not waitlist_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No waitlist found")
-    # Check if student is on waitlist
+    # Get last modified time of waitlist using Redis
+    last_modified_time = r.lastsave()
+    if if_modified_since:
+        client_modified_time = datetime.datetime.strptime(if_modified_since, "%a, %d %b %Y %H:%M:%S %Z")
+        if client_modified_time >= last_modified_time:
+            return status.HTTP_304_NOT_MODIFIED
     id = f"s#{student_id}".encode('utf-8')
     if id not in waitlist_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student is not on waitlist")
     # Get student's position on waitlist
     position = waitlist_data.index(id) + 1
-    return {"Waitlist Position": position}
+    # Convert last modified time to string
+    last_modified_str = last_modified_time.strftime("%a, %d %b %Y %H:%M:%S %Z")
+    return {"Waitlist Position": position, "Last-Modified": last_modified_str}
 
 # DONE: remove a student from a waiting list
 @router.delete("/students/{student_id}/waitlist/{class_id}", tags=['Waitlist'], summary="Remove a student from a waiting list")
