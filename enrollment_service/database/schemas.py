@@ -36,3 +36,4 @@ class Subscription(BaseModel):
     webhook_url: str
     email_id: str
     class_id: str
+    student_id: str

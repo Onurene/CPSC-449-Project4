@@ -22,58 +22,71 @@ r = redis.Redis()
 #=========================================notifications============================================
 
 # api to subscribe to notifications for course
-@router.post("/notifications/subscription/")
+@router.post("/notifications/subscribe/", tags=['Notifications'])
 def subscribe_new_class(subscription_data: Subscription):
     # add the student details to redis
     class_id = subscription_data.class_id
     webhook_url = subscription_data.webhook_url
     email_id = subscription_data.email_id
-    if class_id is not None:
-        subscription_key = "sub" + str(class_id)
-        if webhook_url is not None:
-            r.sadd(subscription_key, str({"webhook_url": webhook_url}))
-        if email_id is not None:
-            r.sadd(subscription_key, str({"email_id": email_id}))
-        return {"message": "subscription added"}
-    return {"message": "send a valid class_id"}
+    student_id = subscription_data.student_id
+    # Check if student exists in the database
+    student_data = qh.query_student(dynamodb_client, student_id)
+    if not student_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No student found")
+    # Check if class exists in the database
+    class_data = qh.query_class(dynamodb_client, class_id)
+    if not class_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No class found")
+    # Check if webhook_url or email_id is provided
+    if webhook_url is None and email_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No webhook url or email id provided")
+    subsciption_key = f'student{student_id}:sub{class_id}'
+    r.sadd(subsciption_key, str({"webhook_url": webhook_url}))
+    r.sadd(subsciption_key, str({"email_id": email_id}))
+    r.sadd(subsciption_key, str({"class_id": class_id}))
+    return {"message": "subscription added"}
+
 
 # api to view current subscriptions
-@router.get("/notifications/webhook/{webhook_url}/email_id/{email_id}")
-def view_subscriptions(webhook_url: str, email_id: str):
-    # view the usage of webhook url or email ids in redis and return
-    current_subs = []
-    if webhook_url:
-        all_subs = r.keys("sub*")
+@router.get("/notifications/list-subscriptions/{student_id}", tags=['Notifications'])
+def view_subscriptions(student_id: str):
+    # view classes subscribed to by webhook_url and email_id
+    # Check if student exists in the database
+    student_data = qh.query_student(dynamodb_client, student_id)
+    if not student_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No student found")
+    # Check if webhook_url or email_id is provided
+    # Get all subscriptions for the student
+    subscription_keys = r.keys(f'student{student_id}:sub*')
+    if not subscription_keys:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No subscriptions found")
+    subscriptions = []
+    # Get all subscriptions for the student
+    for key in subscription_keys:
+        subscriptions.append(r.smembers(key))
 
-        for sub in all_subs:
-            if r.sismember(sub, str({"webhook_url": webhook_url})):
-                current_subs.append(sub)
-        
-    if email_id:
-        all_subs = r.keys("sub*")
+    return {"Subscriptions": subscriptions}
 
-        for sub in all_subs:
-            if r.sismember(sub, str({"email_id": email_id})):
-                current_subs.append(sub)
-    return {"subscriptions": current_subs}
-
+    
 
 # api to unsubscribe from notifications for a course
-@router.delete("/notifications/webhook/{webhook_url}/email/{email_id}/classes/{class_id}")
-def delete_subscription(webhook_url: str, email_id: str, class_id: str):
-    # delete the entry from redis
-    if class_id is not None:
-        subscription_key = "sub" + str(class_id)
-
-        if webhook_url is not None:
-            r.srem(subscription_key, str({"webhook_url": webhook_url}))
-        
-        if email_id is not None:
-            r.srem(subscription_key, str({"email_id": email_id}))
-        
-        return {"message": "subscriptions for the class deleted"}
-
-    return {"message": "invalid course code"}
+@router.delete("/notifications/unsubscribe", tags=['Notifications'])
+def delete_subscription(student_id:str, class_id:str):
+    # Check if student exists in the database
+    student_data = qh.query_student(dynamodb_client, student_id)
+    if not student_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No student found")
+    # Check if class exists in the database
+    class_data = qh.query_class(dynamodb_client, class_id)
+    if not class_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No class found")
+    # Check if student is subscribed to the class
+    subscription_key = f'student{student_id}:sub{class_id}'
+    if not r.exists(subscription_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No subscription found")
+    # Delete the subscription
+    r.delete(subscription_key)
+    return {"message": "subscription deleted"}
 
 
 
