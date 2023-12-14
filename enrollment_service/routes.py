@@ -4,7 +4,7 @@ import redis
 
 from fastapi import Depends, HTTPException, APIRouter, Header, status
 import boto3
-from enrollment_service.database.schemas import Class
+from enrollment_service.database.schemas import Class, Subscription
 
 router = APIRouter()
 dropped = []
@@ -17,8 +17,65 @@ table_name = 'TitanOnlineEnrollment'
 r = redis.Redis()
 
 
-#==========================================students==================================================
+#=========================================notifications============================================
 
+# api to subscribe to notifications for course
+@router.post("/notifications/subscription/")
+def subscribe_new_class(subscription_data: Subscription):
+    # add the student details to redis
+    class_id = subscription_data.class_id
+    webhook_url = subscription_data.webhook_url
+    email_id = subscription_data.email_id
+    if class_id is not None:
+        subscription_key = "sub" + str(class_id)
+        if webhook_url is not None:
+            r.sadd(subscription_key, str({"webhook_url": webhook_url}))
+        if email_id is not None:
+            r.sadd(subscription_key, str({"email_id": email_id}))
+        return {"message": "subscription added"}
+    return {"message": "send a valid class_id"}
+
+# api to view current subscriptions
+@router.get("/notifications/webhook/{webhook_url}/email_id/{email_id}")
+def view_subscriptions(webhook_url: str, email_id: str):
+    # view the usage of webhook url or email ids in redis and return
+    current_subs = []
+    if webhook_url:
+        all_subs = r.keys("sub*")
+
+        for sub in all_subs:
+            if r.sismember(sub, str({"webhook_url": webhook_url})):
+                current_subs.append(sub)
+        
+    if email_id:
+        all_subs = r.keys("sub*")
+
+        for sub in all_subs:
+            if r.sismember(sub, str({"email_id": email_id})):
+                current_subs.append(sub)
+    return {"subscriptions": current_subs}
+
+
+# api to unsubscribe from notifications for a course
+@router.delete("/notifications/webhook/{webhook_url}/email/{email_id}/classes/{class_id}")
+def delete_subscription(webhook_url: str, email_id: str, class_id: str):
+    # delete the entry from redis
+    if class_id is not None:
+        subscription_key = "sub" + str(class_id)
+
+        if webhook_url is not None:
+            r.srem(subscription_key, str({"webhook_url": webhook_url}))
+        
+        if email_id is not None:
+            r.srem(subscription_key, str({"email_id": email_id}))
+        
+        return {"message": "subscriptions for the class deleted"}
+
+    return {"message": "invalid course code"}
+
+
+
+#==========================================students==================================================
 
 # DONE: GET available classes for a student
 @router.get("/students/{student_id}/classes", tags=['Student']) 

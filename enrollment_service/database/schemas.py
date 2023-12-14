@@ -31,3 +31,8 @@ class Enrollment(BaseModel):
 class Dropped(BaseModel):
     class_id: int
     student_id: int
+
+class Subscription(BaseModel):
+    webhook_url: str
+    email_id: str
+    class_id: str

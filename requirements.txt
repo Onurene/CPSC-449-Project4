@@ -4,3 +4,5 @@ pydantic
 jwcrypto==1.5.0
 boto3
 redis
+httpx
+aiosmtpd
