@@ -46,6 +46,7 @@ def callback(ch, method, properties, body):
         email_string = next(s for s in string_data if 'email_id' in s)
         email = re.search(r"'email_id': '([^']+)'", email_string).group(1)
         send_email_notification(email, class_id)
+        print(f" [x] Email sent to student " + student_id)
 
 
 print(' [*] Waiting for enrollment_notifications. To exit press CTRL+C')

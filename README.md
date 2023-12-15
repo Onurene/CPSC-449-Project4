@@ -21,3 +21,10 @@ run `sh ./bin/install.sh`.
 - `http://localhost:5400/`: User enpoints (register/login)
 - `http://localhost:5500/`: DynamoDB Local
 - `http://localhost:5400/api/login`: Verify user creds
+
+## Extra
+
+You may need to create a `.env` file in your root directory in order to see all the logs from the consumers.
+
+- Create a `.env` file
+- Add `PYTHONUNBUFFERED=True` to the file 
