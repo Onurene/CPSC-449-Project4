@@ -19,7 +19,6 @@ channel.queue_bind(exchange='enrollment_notifications', queue=queue_name)
 
 def send_email_notification(toaddrs, class_id):
     server = smtplib.SMTP('localhost', 5600)
-    server.set_debuglevel(1)
     fromaddr = "titanonline@edu.com"
     body = "You have been enrolled into class " + class_id
     server.sendmail(fromaddr, toaddrs, body)
