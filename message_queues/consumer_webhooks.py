@@ -31,7 +31,6 @@ def send_webhook(body, url):
         return
     else:
         print(res.status_code)
-
     return
 
 
@@ -56,6 +55,7 @@ def callback(ch, method, properties, body):
         webhook_match = re.search(r"'webhook_url': '([^']+)'", json_string)
         webhook_url = webhook_match.group(1) if webhook_match else None
         send_webhook(body.decode(), webhook_url)
+        ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
 print(' [*] Waiting for enrollment_notifications. To exit press CTRL+C')

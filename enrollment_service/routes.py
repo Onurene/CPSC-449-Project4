@@ -253,9 +253,12 @@ def drop_student_from_class(student_id: str, class_id: str):
             r.lrem(f"waitlist:{class_id}", 0, f"s#{waitlist_data[0]}")
             # Fetch the updated class data from the databas
             updated_class_data = qh.query_class(dynamodb_client, class_id)
-            message = f"Student {student_id} dropped from class {class_id} and student {first_student_id} on waitlist is enrolled"
-            channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
-            print(f" [x] Sent {message}")
+            # Check if student is subscribed to notifications
+            subscription_key = f'student{first_student_id}:sub{class_id}'
+            if r.exists(subscription_key):
+                message = f"Student {student_id} dropped from class {class_id} and student {first_student_id} on waitlist is enrolled"
+                channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
+                print(f" [x] Sent {message}")
             return {"message": "Student dropped from class and first student on waitlist enrolled", "Class": updated_class_data["Detail"]}
     return {"message": "Student dropped from class"}
     
@@ -440,9 +443,12 @@ def instructor_drop_class(instructor_id: str, class_id: str, student_id: str):
             r.lrem(f"waitlist:{class_id}", 0, f"s#{waitlist_data[0]}")
             # Fetch the updated class data from the databas
             updated_class_data = qh.query_class(dynamodb_client, class_id)
-            message = f"Student {student_id} dropped from class {class_id} and first student on waitlist enrolled"
-            channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
-            print(f" [x] Sent {message}")
+            # Check if student is subscribed to notifications
+            subscription_key = f'student{first_student_id}:sub{class_id}'
+            if r.exists(subscription_key):
+                message = f"Student {student_id} dropped from class {class_id} and first student on waitlist enrolled"
+                channel.basic_publish(exchange='enrollment_notifications', routing_key='', body=message)
+                print(f" [x] Sent {message}")
             return {"message": "Student dropped from class and first student on waitlist enrolled", "Class": updated_class_data["Detail"]}
     return {"message": "Student dropped from class"}
 
